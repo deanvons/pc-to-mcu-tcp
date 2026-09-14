@@ -4,23 +4,23 @@
 
 **Roles:**
 
-| Side | Role | Why |
-|---|---|---|
-| Microcontroller | TCP **server** — listens | It's the device being interrogated; it waits to be asked |
-| Windows C# app | TCP **client** — connects | The operator initiates the session |
+| Side            | Role                      | Why                                                      |
+| --------------- | ------------------------- | -------------------------------------------------------- |
+| Microcontroller | TCP **server** — listens  | It's the device being interrogated; it waits to be asked |
+| Windows C# app  | TCP **client** — connects | The operator initiates the session                       |
 
 **Fixed parameters for this exercise:**
 
-| Parameter | Value |
-|---|---|
-| Transport | TCP over IPv4 |
-| Port | 5000 |
-| Micro IP | 192.168.10.11 |
-| Windows IP | 192.168.10.10 |
-| Subnet mask | 255.255.255.0 (/24) |
-| Gateway | none (leave blank) |
-| Framing | one message per line, terminated with `\n` |
-| Encoding | ASCII |
+| Parameter   | Value                                      |
+| ----------- | ------------------------------------------ |
+| Transport   | TCP over IPv4                              |
+| Port        | 5000                                       |
+| Micro IP    | 192.168.10.11                              |
+| Windows IP  | 192.168.10.10                              |
+| Subnet mask | 255.255.255.0 (/24)                        |
+| Gateway     | none (leave blank)                         |
+| Framing     | one message per line, terminated with `\n` |
+| Encoding    | ASCII                                      |
 
 > **Why 192.168.10.x and not 192.168.1.x?** Most home and office routers already use 192.168.0.x or 192.168.1.x. If the PC's Wi-Fi is on the same subnet as its Ethernet adapter, Windows gets ambiguous routes and the link behaves unpredictably. Picking an unusual third octet avoids the whole class of problem.
 
@@ -37,110 +37,6 @@ dotnet new console -n MockServer
 cd MockServer
 ```
 
-`Program.cs`:
-
-```csharp
-using System.Net;
-using System.Net.Sockets;
-using System.Text;
-
-const int Port = 5000;
-
-// TcpListener is the "I am a server" object. It does two things:
-// binds to a port (claims that number with the OS) and then accepts
-// incoming connections.
-//
-// IPAddress.Any means "bind to every network interface on this machine" —
-// loopback, Ethernet, Wi-Fi, all of them. That's what lets the same binary
-// answer both 127.0.0.1 during local testing and 192.168.10.10 over the
-// cable later. If you wanted to restrict it to loopback only, you'd pass
-// IPAddress.Loopback instead.
-var listener = new TcpListener(IPAddress.Any, Port);
-
-// Start() performs the bind and puts the socket into the listening state.
-// This is the call that throws if another process already owns port 5000
-// ("address already in use"). Nothing is accepted yet.
-listener.Start();
-Console.WriteLine($"Mock server listening on port {Port}. Ctrl+C to stop.");
-
-// Outer loop: serve one client, then go back and wait for the next.
-while (true)
-{
-    // Wait for a client to connect. See section 1.3 on what this await
-    // actually does — it is not a busy-wait, and it is not a blocked thread.
-    //
-    // The returned TcpClient represents this one connection. `using` makes
-    // sure the socket is closed when we fall out of the loop body, whether
-    // that's a clean disconnect or an exception.
-    using TcpClient client = await listener.AcceptTcpClientAsync();
-    Console.WriteLine($"Client connected from {client.Client.RemoteEndPoint}");
-
-    // NetworkStream is the raw byte pipe for this connection. TCP gives you
-    // an ordered stream of bytes and nothing more — it has no concept of
-    // where one message ends and the next begins. That's our job, and it's
-    // why the protocol uses newlines as delimiters.
-    using NetworkStream stream = client.GetStream();
-
-    // StreamReader/StreamWriter sit on top of the byte pipe and do the
-    // newline splitting for us. ASCII because the firmware has no business
-    // dealing with multi-byte encodings.
-    using var reader = new StreamReader(stream, Encoding.ASCII);
-
-    // AutoFlush = true means WriteLine pushes the bytes out immediately.
-    // Without it, responses sit in a buffer and the client appears to hang —
-    // a classic and very confusing bug.
-    using var writer = new StreamWriter(stream, Encoding.ASCII) { AutoFlush = true };
-
-    // On Windows, WriteLine defaults to "\r\n". The firmware sends and
-    // expects a bare "\n", so pin it explicitly rather than relying on
-    // whatever the platform default happens to be.
-    writer.NewLine = "\n";
-
-    try
-    {
-        string? line;
-
-        // ReadLineAsync accumulates bytes until it sees a newline, then
-        // hands back the line without the terminator. It returns null when
-        // the client closes the connection — that's the loop's exit.
-        while ((line = await reader.ReadLineAsync()) != null)
-        {
-            // Trim strips any stray carriage return (if someone tests with
-            // PuTTY, which sends "\r\n") plus surrounding whitespace.
-            line = line.Trim();
-
-            // A bare newline is not an error, just nothing to do.
-            if (line.Length == 0) continue;
-
-            Console.WriteLine($"  RX: {line}");
-
-            // The entire command set, for now. The point of this exercise is
-            // the plumbing, not the commands.
-            string response = line switch
-            {
-                "PING" => "PONG",
-                "ID"   => "OK MOCKSERVER v0.1",
-                _      => "ERR UNKNOWN_COMMAND"
-            };
-
-            Console.WriteLine($"  TX: {response}");
-
-            // Exactly one response line per request. The client is waiting
-            // for it, so never return zero lines and never return two.
-            await writer.WriteLineAsync(response);
-        }
-    }
-    catch (IOException ex)
-    {
-        // Cable yanked, client process killed, board reset. Not a bug —
-        // just log it and go back to accepting.
-        Console.WriteLine($"  Connection dropped: {ex.Message}");
-    }
-
-    Console.WriteLine("Client disconnected.");
-}
-```
-
 ### 1.2 Client
 
 ```bash
@@ -148,95 +44,13 @@ dotnet new console -n DiagClient
 cd DiagClient
 ```
 
-`Program.cs`:
-
-```csharp
-using System.Net.Sockets;
-using System.Text;
-
-// Default to loopback so `dotnet run` with no arguments does the local test.
-// Pass the board's address later: dotnet run 192.168.10.11 5000
-string host = args.Length > 0 ? args[0] : "127.0.0.1";
-int port = args.Length > 1 ? int.Parse(args[1]) : 5000;
-
-using var client = new TcpClient();
-
-// Connect() performs the TCP three-way handshake. It throws
-// SocketException if nothing is listening on that port ("connection
-// refused") or if the host can't be reached at all ("timed out").
-//
-// Those two failures mean different things and it's worth learning to tell
-// them apart: "refused" means the machine is there and answered, but no
-// process owns the port — so your addressing is fine and your server isn't
-// running. "Timed out" means nothing answered at all — that's a cable,
-// subnet, or firewall problem.
-client.Connect(host, port);
-Console.WriteLine($"Connected to {host}:{port}. Type a command, or 'quit' to exit.");
-
-using NetworkStream stream = client.GetStream();
-using var reader = new StreamReader(stream, Encoding.ASCII);
-using var writer = new StreamWriter(stream, Encoding.ASCII) { AutoFlush = true };
-
-// Match the firmware: bare "\n", not the Windows default "\r\n".
-writer.NewLine = "\n";
-
-// Don't wait forever if the far end accepts the connection but never
-// answers — a very common firmware bug, where tcp_write was called but
-// tcp_output was forgotten.
-//
-// IMPORTANT: ReadTimeout only applies to *synchronous* reads. NetworkStream
-// ignores it entirely for ReadAsync/ReadLineAsync, which is why this client
-// is written synchronously. If you convert it to async later, this line
-// silently stops doing anything and you'll hang forever on a dead server.
-// Use ReadLineAsync(CancellationToken) instead if you go that route.
-stream.ReadTimeout = 5000;
-
-while (true)
-{
-    Console.Write("> ");
-
-    // Blocks on keyboard input. Null means stdin was closed (Ctrl+Z / piped
-    // input ending), which we treat the same as "quit".
-    string? command = Console.ReadLine();
-    if (command is null || command.Equals("quit", StringComparison.OrdinalIgnoreCase))
-        break;
-    if (command.Length == 0) continue;
-
-    // Send the command plus its newline terminator. The newline is what
-    // tells the far end the message is complete — without it the server
-    // sits waiting for more bytes and you get a five-second timeout.
-    writer.WriteLine(command);
-
-    try
-    {
-        // Strictly one response line per command, so a single ReadLine is
-        // the whole reply. Returns null if the server closed the connection.
-        string? response = reader.ReadLine();
-        if (response is null)
-        {
-            Console.WriteLine("Server closed the connection.");
-            break;
-        }
-        Console.WriteLine($"< {response}");
-    }
-    catch (IOException)
-    {
-        // ReadTimeout expired. The connection is now in an unknown state —
-        // a late reply may still arrive and desynchronise every subsequent
-        // request/response pair — so in a real tool you'd tear down and
-        // reconnect here rather than carrying on.
-        Console.WriteLine("Timed out waiting for a response.");
-    }
-}
-```
-
 ### 1.3 What that `await` on accept actually does
 
-Short answer: execution stops there until a client connects, but nothing is *blocked* in the sense that matters.
+Short answer: execution stops there until a client connects, but nothing is _blocked_ in the sense that matters.
 
 `AcceptTcpClientAsync` returns immediately with an incomplete `Task`. The `await` hands control back to the caller and the thread is returned to the thread pool — it's free to do other work, and in this console app it simply goes idle. When the OS completes the TCP handshake with an incoming client, it signals an I/O completion, the task completes, and the rest of the loop body resumes on a pool thread. No thread sat spinning, and no thread sat parked.
 
-For *this* program the observable behaviour is identical to the blocking `listener.AcceptTcpClient()`. The window is dark either way. The difference only pays off when there's something else to do — a UI to keep responsive, a cancellation token to honour on Ctrl+C, or many connections in flight. Which is exactly the situation you'll be in when this logic moves into the Windows Forms app: block there and the UI freezes.
+For _this_ program the observable behaviour is identical to the blocking `listener.AcceptTcpClient()`. The window is dark either way. The difference only pays off when there's something else to do — a UI to keep responsive, a cancellation token to honour on Ctrl+C, or many connections in flight. Which is exactly the situation you'll be in when this logic moves into the Windows Forms app: block there and the UI freezes.
 
 Three related points worth knowing:
 
@@ -338,12 +152,12 @@ Success looks like four replies with a sub-millisecond time.
 
 ### 2.5 Common ping failures
 
-| Symptom | Likely cause |
-|---|---|
+| Symptom                        | Likely cause                                                                                            |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------- |
 | `Destination host unreachable` | Addresses are on different subnets. Check both masks are 255.255.255.0 and both IPs share `192.168.10.` |
-| `Request timed out` | Board's interface isn't up, or its IP differs from what the firmware sets |
-| PC shows `169.254.x.x` | Static IP applied to the wrong adapter, or not saved |
-| No link light | Cable, board power, or PHY init |
+| `Request timed out`            | Board's interface isn't up, or its IP differs from what the firmware sets                               |
+| PC shows `169.254.x.x`         | Static IP applied to the wrong adapter, or not saved                                                    |
+| No link light                  | Cable, board power, or PHY init                                                                         |
 
 ### 2.6 Windows Firewall
 
@@ -355,7 +169,7 @@ New-NetFirewallRule -DisplayName "Diag TCP 5000" `
                     -LocalPort 5000 -Action Allow
 ```
 
-The same applies to pinging *the PC* from elsewhere — Windows drops inbound ICMP echo by default.
+The same applies to pinging _the PC_ from elsewhere — Windows drops inbound ICMP echo by default.
 
 ---
 
@@ -383,10 +197,10 @@ The same applies to pinging *the PC* from elsewhere — Windows drops inbound IC
 
 lwIP offers two programming interfaces. Pick based on whether you have an RTOS:
 
-| API | Use when | Style |
-|---|---|---|
-| **Raw / callback** (`tcp_*`) | Bare metal, no RTOS | Register callbacks, never block, call `sys_check_timeouts()` in your main loop |
-| **Netconn / sockets** | FreeRTOS, Zephyr, ThreadX | Blocking `accept()` / `recv()` in a task, looks like BSD sockets |
+| API                          | Use when                  | Style                                                                          |
+| ---------------------------- | ------------------------- | ------------------------------------------------------------------------------ |
+| **Raw / callback** (`tcp_*`) | Bare metal, no RTOS       | Register callbacks, never block, call `sys_check_timeouts()` in your main loop |
+| **Netconn / sockets**        | FreeRTOS, Zephyr, ThreadX | Blocking `accept()` / `recv()` in a task, looks like BSD sockets               |
 
 The raw API is shown below because it's the common bare-metal case. If you're on an RTOS, the sockets API is considerably easier — use it.
 
@@ -496,7 +310,7 @@ Replies mean the cable, PHY, driver, addressing, and subnet mask are all correct
 
 **If ping fails at this checkpoint** and Part 2's table doesn't explain it, check these three before anything else:
 
-- **Link state.** In lwIP 2.x the stack only sends on an interface that is both *up* and *link-up*. `netif_set_up` covers the first; some vendor drivers set the second for you (STM32 CubeMX does, via `ethernet_link_check_state`), but bare ports often don't. If the board receives the ping but never replies, add `netif_set_link_up(&g_netif);` directly after `netif_set_up` in `network_init`.
+- **Link state.** In lwIP 2.x the stack only sends on an interface that is both _up_ and _link-up_. `netif_set_up` covers the first; some vendor drivers set the second for you (STM32 CubeMX does, via `ethernet_link_check_state`), but bare ports often don't. If the board receives the ping but never replies, add `netif_set_link_up(&g_netif);` directly after `netif_set_up` in `network_init`.
 - **`sys_now()`.** With `NO_SYS=1`, `sys_check_timeouts()` calls `sys_now()`, which you must implement to return milliseconds from a real tick source such as SysTick. A stub that returns 0 compiles fine and breaks the stack's timers in subtle ways.
 - **`lwipopts.h`.** `LWIP_ICMP` and `LWIP_ARP` must be enabled. Both default to on, but trimmed configurations sometimes turn them off.
 
@@ -569,19 +383,19 @@ Copy this page, fill in the blanks, and hand it out with the assignment. If ever
 ### Diagnostic Protocol Specification
 
 **Version:** 0.1
-**Date:** ____________
-**Author:** ____________
+**Date:** ****\_\_\_\_****
+**Author:** ****\_\_\_\_****
 
 #### Transport
 
-| | |
-|---|---|
-| Protocol | TCP over IPv4 |
-| Port | 5000 |
-| Server (listens) | Microcontroller, 192.168.10.11 |
-| Client (connects) | Windows diagnostic app, 192.168.10.10 |
-| Concurrent connections | 1 |
-| Idle timeout | none |
+|                        |                                       |
+| ---------------------- | ------------------------------------- |
+| Protocol               | TCP over IPv4                         |
+| Port                   | 5000                                  |
+| Server (listens)       | Microcontroller, 192.168.10.11        |
+| Client (connects)      | Windows diagnostic app, 192.168.10.10 |
+| Concurrent connections | 1                                     |
+| Idle timeout           | none                                  |
 
 #### Framing
 
@@ -612,22 +426,22 @@ ERR <REASON>          failure
 
 #### Defined commands
 
-| Command | Arguments | Success response | Notes |
-|---|---|---|---|
-| `PING` | none | `PONG` | Liveness check |
-| `ID` | none | `OK <name> <version>` | Identifies the firmware |
-| | | | |
-| | | | |
-| | | | |
+| Command | Arguments | Success response      | Notes                   |
+| ------- | --------- | --------------------- | ----------------------- |
+| `PING`  | none      | `PONG`                | Liveness check          |
+| `ID`    | none      | `OK <name> <version>` | Identifies the firmware |
+|         |           |                       |                         |
+|         |           |                       |                         |
+|         |           |                       |                         |
 
 #### Defined error reasons
 
-| Reason | Meaning |
-|---|---|
-| `UNKNOWN_COMMAND` | Command verb not recognised |
-| `LINE_TOO_LONG` | Request exceeded the maximum line length |
-| `BAD_ARGUMENT` | Argument missing or malformed |
-| | |
+| Reason            | Meaning                                  |
+| ----------------- | ---------------------------------------- |
+| `UNKNOWN_COMMAND` | Command verb not recognised              |
+| `LINE_TOO_LONG`   | Request exceeded the maximum line length |
+| `BAD_ARGUMENT`    | Argument missing or malformed            |
+|                   |                                          |
 
 #### Example session
 
@@ -642,5 +456,5 @@ ERR <REASON>          failure
 
 #### Open questions
 
-- ____________________________________________
-- ____________________________________________
+- ***
+- ***
