@@ -28,39 +28,9 @@
 
 ## Part 1 — Verify both ends on localhost (no hardware)
 
-Build these two console apps first. They let you prove the client works before any board exists, and later they double as a reference implementation for the students.
+Run these two console apps first. They let you prove the client works before any board exists, and later they double as a reference implementation for the students.
 
-### 1.1 Mock server
-
-```bash
-dotnet new console -n MockServer
-cd MockServer
-```
-
-### 1.2 Client
-
-```bash
-dotnet new console -n DiagClient
-cd DiagClient
-```
-
-### 1.3 What that `await` on accept actually does
-
-Short answer: execution stops there until a client connects, but nothing is _blocked_ in the sense that matters.
-
-`AcceptTcpClientAsync` returns immediately with an incomplete `Task`. The `await` hands control back to the caller and the thread is returned to the thread pool — it's free to do other work, and in this console app it simply goes idle. When the OS completes the TCP handshake with an incoming client, it signals an I/O completion, the task completes, and the rest of the loop body resumes on a pool thread. No thread sat spinning, and no thread sat parked.
-
-For _this_ program the observable behaviour is identical to the blocking `listener.AcceptTcpClient()`. The window is dark either way. The difference only pays off when there's something else to do — a UI to keep responsive, a cancellation token to honour on Ctrl+C, or many connections in flight. Which is exactly the situation you'll be in when this logic moves into the Windows Forms app: block there and the UI freezes.
-
-Three related points worth knowing:
-
-**Ctrl+C is your only exit.** There's no cancellation token wired up, so the app cannot be asked to stop gracefully while it's waiting. That's fine for a test harness. For anything longer-lived, pass a token: `AcceptTcpClientAsync(cts.Token)`.
-
-**Only one client at a time is served.** While execution is inside the inner read loop, `AcceptTcpClientAsync` isn't being called. A second client connecting during that window doesn't get refused — the OS holds it in the accept backlog queue, and it looks connected from its own side while receiving no responses. It's only picked up once the first client disconnects. This is deliberate: it mirrors the single-connection firmware. But it explains a confusing symptom if two students point clients at the same board.
-
-**The inner `await reader.ReadLineAsync()` behaves the same way.** It suspends until a full line arrives or the connection closes. Unlike the client, the server has no timeout set, so it will wait indefinitely for a client that connects and then says nothing. Acceptable for a mock; not acceptable for production.
-
-### 1.4 Run the loopback test
+### 1.1 Run the loopback test
 
 Two terminals:
 
@@ -76,7 +46,7 @@ Type `PING`, expect `PONG`. Type `ID`, expect `OK MOCKSERVER v0.1`. Type `HELLO`
 
 If that works, your client is correct. When the real hardware arrives, the **only** thing that changes is the argument: `dotnet run 192.168.10.11 5000`.
 
-### 1.5 If port 5000 is refused
+### 1.2 If port 5000 is refused
 
 Windows reserves blocks of ports for Hyper-V, WSL, and Docker. Check before blaming your code:
 
@@ -84,17 +54,35 @@ Windows reserves blocks of ports for Hyper-V, WSL, and Docker. Check before blam
 netsh interface ipv4 show excludedportrange protocol=tcp
 ```
 
-If 5000 falls inside an excluded range, pick something outside it — 5001, 7000, and 9000 are usually clear — and update this document's parameter table so students use the same number.
+If 5000 falls inside an excluded range, pick something outside it — 5001, 7000, and 9000 are usually clear — and update this document's parameter table so they use the same number.
+
+### 1.3 A note on the apps, what that `await` on accept actually does
+
+Short answer: execution stops there until a client connects, but nothing is _blocked_ in the sense that matters.
+
+`AcceptTcpClientAsync` returns immediately with an incomplete `Task`. The `await` hands control back to the caller and the thread is returned to the thread pool — it's free to do other work, and in this console app it simply goes idle. When the OS completes the TCP handshake with an incoming client, it signals an I/O completion, the task completes, and the rest of the loop body resumes on a pool thread. No thread sat spinning, and no thread sat parked.
+
+For _this_ program the observable behaviour is identical to the blocking `listener.AcceptTcpClient()`. The window is dark either way. The difference only pays off when there's something else to do — a UI to keep responsive, a cancellation token to honour on Ctrl+C, or many connections in flight. Which is exactly the situation you'll be in when this logic moves into the Windows Forms app: block there and the UI freezes.
+
+Three related points worth knowing:
+
+**Ctrl+C is your only exit.** There's no cancellation token wired up, so the app cannot be asked to stop gracefully while it's waiting. That's fine for a test harness. For anything longer-lived, pass a token: `AcceptTcpClientAsync(cts.Token)`.
+
+**Only one client at a time is served.** While execution is inside the inner read loop, `AcceptTcpClientAsync` isn't being called. A second client connecting during that window doesn't get refused — the OS holds it in the accept backlog queue, and it looks connected from its own side while receiving no responses. It's only picked up once the first client disconnects. This is deliberate: it mirrors the single-connection firmware. But it explains a confusing symptom if two students point clients at the same board.
+
+**The inner `await reader.ReadLineAsync()` behaves the same way.** It suspends until a full line arrives or the connection closes. Unlike the client, the server has no timeout set, so it will wait indefinitely for a client that connects and then says nothing. Acceptable for a mock; not acceptable for production.
 
 ---
 
-## Part 2 — Windows static IP and ping verification
+## Part 2 — Windows static IP (and how to ping the board later)
 
 ### 2.1 Cabling
 
 Run a standard Ethernet cable directly between the PC's Ethernet port and the board's RJ45 jack. No switch or router needed. Almost all modern NICs and PHYs support auto-MDIX, so a crossover cable is not required; if you get no link light at all, and only then, try a crossover.
 
-Confirm the link light on the PC's port is lit before going any further. No link light means a cable, power, or PHY problem, and nothing above it will work.
+Check the link light on the PC's port. If it's lit, the cable and both ends' physical layer are fine.
+
+**A dark link light at this stage doesn't prove a fault.** Some boards' PHYs (the Ethernet chip) negotiate a link as soon as they're powered, with no firmware at all. Others stay dark until the firmware's driver initialises them — which doesn't happen until you flash the checkpoint in 3.3a. So if the light is off now, carry on, and only start suspecting the cable or PHY if it's still off once that firmware is running.
 
 ### 2.2 Assign the static IP
 
@@ -140,7 +128,11 @@ ipconfig
 
 Look at the Ethernet adapter. You want `192.168.10.10`. If you see something beginning `169.254.`, that's APIPA — Windows failed to get an address and invented one, meaning the manual setting didn't apply to the adapter you think it did.
 
-### 2.4 Ping the board
+That's everything you can verify from the PC alone. Once `ipconfig` shows `192.168.10.10` on the right adapter, the Windows side is done.
+
+### 2.4 How to ping the board (you'll run this in 3.3a)
+
+> **Don't expect replies yet.** Nothing on the board answers ping until your firmware brings up the network interface, and that first happens at the checkpoint in 3.3a. Pinging now will give `Request timed out`, which at this stage is expected and says nothing about your Windows setup. Read this section and 2.5 now so you know what to look for; run the command when you reach 3.3a.
 
 ```
 ping 192.168.10.11
@@ -151,6 +143,8 @@ Success looks like four replies with a sub-millisecond time.
 **What ping does and doesn't prove.** Ping uses ICMP, which lwIP answers all by itself as soon as the interface is up. A successful ping proves the cable, the PHY, the addressing, and the subnet mask are all correct. It says nothing about whether your TCP server is listening. Those are two separate things, and students will conflate them.
 
 ### 2.5 Common ping failures
+
+Use this table when you ping from the 3.3a checkpoint onwards. Before that firmware is running, every row below is expected.
 
 | Symptom                        | Likely cause                                                                                            |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------- |
@@ -272,7 +266,7 @@ void network_init(void)
 }
 ```
 
-At this point — before you write a single line of TCP code — flash it and have the PC ping `192.168.10.11`. lwIP answers ICMP on its own. **If ping doesn't work, stop and fix that first.** Every problem beyond this point is much harder to diagnose with a broken link underneath it.
+At this point — before you write a single line of TCP code — you can prove the link works. lwIP answers ICMP on its own, so all you need is a `main` to flash: that's the checkpoint in 3.3a. **If ping doesn't work, stop and fix that first.** Every problem beyond this point is much harder to diagnose with a broken link underneath it.
 
 ### 3.3a Checkpoint: ping only
 
@@ -300,15 +294,15 @@ int main(void)
 }
 ```
 
-Flash it, then from the PC:
+Flash it, then from the PC run the ping from 2.4 — this is the first point in the exercise where it can succeed:
 
 ```
 ping 192.168.10.11
 ```
 
-Replies mean the cable, PHY, driver, addressing, and subnet mask are all correct — and you haven't written any TCP yet. If you get replies here, any later failure to connect is in your TCP code, not the link.
+Replies mean the cable, PHY, driver, addressing, and subnet mask are all correct — and you haven't written any TCP yet. If you get replies here, any later failure to connect is in your TCP code, not the link. Now is also the time to recheck the link light from 2.1: it should be lit.
 
-**If ping fails at this checkpoint** and Part 2's table doesn't explain it, check these three before anything else:
+**If ping fails at this checkpoint**, work through the table in 2.5 first. If that doesn't explain it, check these three:
 
 - **Link state.** In lwIP 2.x the stack only sends on an interface that is both _up_ and _link-up_. `netif_set_up` covers the first; some vendor drivers set the second for you (STM32 CubeMX does, via `ethernet_link_check_state`), but bare ports often don't. If the board receives the ping but never replies, add `netif_set_link_up(&g_netif);` directly after `netif_set_up` in `network_init`.
 - **`sys_now()`.** With `NO_SYS=1`, `sys_check_timeouts()` calls `sys_now()`, which you must implement to return milliseconds from a real tick source such as SysTick. A stub that returns 0 compiles fine and breaks the stack's timers in subtle ways.
@@ -383,8 +377,8 @@ Copy this page, fill in the blanks, and hand it out with the assignment. If ever
 ### Diagnostic Protocol Specification
 
 **Version:** 0.1
-**Date:** ****\_\_\_\_****
-**Author:** ****\_\_\_\_****
+**Date:** \***\*\_\_\_\_\*\***
+**Author:** \***\*\_\_\_\_\*\***
 
 #### Transport
 
