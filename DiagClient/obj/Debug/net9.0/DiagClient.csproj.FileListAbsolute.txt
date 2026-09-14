@@ -1,0 +1,14 @@
+C:\Users\DrDeanvonSchoultz\source\repos\dotnetNetworking\DiagClient\bin\Debug\net9.0\DiagClient.exe
+C:\Users\DrDeanvonSchoultz\source\repos\dotnetNetworking\DiagClient\bin\Debug\net9.0\DiagClient.deps.json
+C:\Users\DrDeanvonSchoultz\source\repos\dotnetNetworking\DiagClient\bin\Debug\net9.0\DiagClient.runtimeconfig.json
+C:\Users\DrDeanvonSchoultz\source\repos\dotnetNetworking\DiagClient\bin\Debug\net9.0\DiagClient.dll
+C:\Users\DrDeanvonSchoultz\source\repos\dotnetNetworking\DiagClient\bin\Debug\net9.0\DiagClient.pdb
+C:\Users\DrDeanvonSchoultz\source\repos\dotnetNetworking\DiagClient\obj\Debug\net9.0\DiagClient.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\DrDeanvonSchoultz\source\repos\dotnetNetworking\DiagClient\obj\Debug\net9.0\DiagClient.AssemblyInfoInputs.cache
+C:\Users\DrDeanvonSchoultz\source\repos\dotnetNetworking\DiagClient\obj\Debug\net9.0\DiagClient.AssemblyInfo.cs
+C:\Users\DrDeanvonSchoultz\source\repos\dotnetNetworking\DiagClient\obj\Debug\net9.0\DiagClient.csproj.CoreCompileInputs.cache
+C:\Users\DrDeanvonSchoultz\source\repos\dotnetNetworking\DiagClient\obj\Debug\net9.0\DiagClient.dll
+C:\Users\DrDeanvonSchoultz\source\repos\dotnetNetworking\DiagClient\obj\Debug\net9.0\refint\DiagClient.dll
+C:\Users\DrDeanvonSchoultz\source\repos\dotnetNetworking\DiagClient\obj\Debug\net9.0\DiagClient.pdb
+C:\Users\DrDeanvonSchoultz\source\repos\dotnetNetworking\DiagClient\obj\Debug\net9.0\DiagClient.genruntimeconfig.cache
+C:\Users\DrDeanvonSchoultz\source\repos\dotnetNetworking\DiagClient\obj\Debug\net9.0\ref\DiagClient.dll

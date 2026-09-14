@@ -1,0 +1,14 @@
+C:\Users\DrDeanvonSchoultz\source\repos\dotnetNetworking\MockServer\bin\Debug\net9.0\MockServer.exe
+C:\Users\DrDeanvonSchoultz\source\repos\dotnetNetworking\MockServer\bin\Debug\net9.0\MockServer.deps.json
+C:\Users\DrDeanvonSchoultz\source\repos\dotnetNetworking\MockServer\bin\Debug\net9.0\MockServer.runtimeconfig.json
+C:\Users\DrDeanvonSchoultz\source\repos\dotnetNetworking\MockServer\bin\Debug\net9.0\MockServer.dll
+C:\Users\DrDeanvonSchoultz\source\repos\dotnetNetworking\MockServer\bin\Debug\net9.0\MockServer.pdb
+C:\Users\DrDeanvonSchoultz\source\repos\dotnetNetworking\MockServer\obj\Debug\net9.0\MockServer.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\DrDeanvonSchoultz\source\repos\dotnetNetworking\MockServer\obj\Debug\net9.0\MockServer.AssemblyInfoInputs.cache
+C:\Users\DrDeanvonSchoultz\source\repos\dotnetNetworking\MockServer\obj\Debug\net9.0\MockServer.AssemblyInfo.cs
+C:\Users\DrDeanvonSchoultz\source\repos\dotnetNetworking\MockServer\obj\Debug\net9.0\MockServer.csproj.CoreCompileInputs.cache
+C:\Users\DrDeanvonSchoultz\source\repos\dotnetNetworking\MockServer\obj\Debug\net9.0\MockServer.dll
+C:\Users\DrDeanvonSchoultz\source\repos\dotnetNetworking\MockServer\obj\Debug\net9.0\refint\MockServer.dll
+C:\Users\DrDeanvonSchoultz\source\repos\dotnetNetworking\MockServer\obj\Debug\net9.0\MockServer.pdb
+C:\Users\DrDeanvonSchoultz\source\repos\dotnetNetworking\MockServer\obj\Debug\net9.0\MockServer.genruntimeconfig.cache
+C:\Users\DrDeanvonSchoultz\source\repos\dotnetNetworking\MockServer\obj\Debug\net9.0\ref\MockServer.dll
